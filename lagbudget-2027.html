@@ -85,6 +85,7 @@ button.ghost{background:#fff;color:var(--g);border:1px solid var(--g)}
 
 <section><h2>Sammanfattning</h2><table id="sum"></table>
 <button class="b" onclick="window.print()">Skriv ut / spara som PDF</button>
+<button class="b" id="xlsx">Exportera till Excel</button>
 <button class="b ghost" id="copy">Kopiera sammanfattning</button>
 <button class="b ghost" id="reset">Återställ exempelvärden</button>
 <p class="note"><b>Ingår redan i akademiavgiften (ska inte budgeteras här):</b> serieanmälan, domararvoden, planhyra, St:Eriks Cup, ledarkläder, ledarutbildning och försäkring via StFF.<br>
@@ -147,6 +148,7 @@ function calc(){
   document.getElementById('print').innerHTML=`<h1 style="color:#004d17;margin:0">Lagbudget 2027 – ${esc(S.lag)}</h1><p class="sub">Lagkassör: ${esc(S.kassor||'–')} · ${sp} spelare · utskrivet ${new Date().toLocaleDateString('sv-SE')}</p>
   <h2>Budget</h2><table>${tbl}</table><h2>Tränararvode</h2><table><tr><th>Roll</th><th>Form</th><th class="r">Arvode</th><th class="r">Kostnad inkl. arb.avg</th></tr>${trT}</table>
   <p class="note">Föreslagen lagavgift för att gå jämnt ut: ${fmt(needR)} per spelare och månad.</p>`;
+  window._x={rows,c,sp,needR,intak,res,ut};
   window._summary=`Lagbudget 2027 – ${S.lag}\nLagkassör: ${S.kassor||'–'}\nSpelare: ${sp}\n\n`+rows.map(r=>`${r[0]}: ${fmt(r[1])}`).join('\n')+`\n\nLagavgift för att gå jämnt ut: ${fmt(needR)}/spelare/mån`;
   ALL.forEach(f=>f()); save();
 }
@@ -226,6 +228,7 @@ function build(){
   specPost(K,'Övrigt material','',0,30000,500,'material',['Taktiktavla','Bollnät','Vattenflaskor','Kylväska']);
   document.getElementById('addT').onclick=()=>{S.tranare.push({roll:'Assisterande tränare',form:'Arvode',kr:0,man:10});renderTranare();calc();};
   document.getElementById('addA').onclick=()=>{if(!S.andra)S.andra=[];S.andra.push({namn:'',kr:0});renderAndra();calc();const ins=document.querySelectorAll('#andra input[type=text]');ins[ins.length-1].focus();};
+  document.getElementById('xlsx').onclick=exportXLSX;
   document.getElementById('reset').onclick=()=>{if(confirm('Återställa '+S.lag+' till exempelvärden?')){S=defaults(S.lag);refresh();}};
   document.getElementById('copy').onclick=async()=>{try{await navigator.clipboard.writeText(window._summary);document.getElementById('copy').textContent='Kopierat!';setTimeout(()=>document.getElementById('copy').textContent='Kopiera sammanfattning',1500);}catch(e){alert(window._summary);}};
 }
@@ -240,6 +243,29 @@ function renderAndra(){
     n.oninput=()=>{a.namn=n.value;calc();};k.oninput=()=>{a.kr=+k.value||0;calc();};
     d.querySelector('.x').onclick=()=>{S.andra.splice(i,1);renderAndra();calc();};
     h.appendChild(d);});
+}
+function loadXLSX(){return new Promise((ok,err)=>{if(window.XLSX)return ok();const s=document.createElement('script');s.src='xlsx.full.min.js';s.onload=ok;s.onerror=err;document.head.appendChild(s);});}
+async function exportXLSX(){
+  const btn=document.getElementById('xlsx');btn.textContent='Skapar fil…';
+  try{await loadXLSX();}catch(e){btn.textContent='Exportera till Excel';alert('Kunde inte ladda Excel-funktionen. Kontrollera internetanslutningen och försök igen.');return;}
+  const X=window._x, wb=XLSX.utils.book_new(), KR='#,##0 "kr";-#,##0 "kr";0 "kr"';
+  const head=[['Lagbudget 2027 – '+S.lag],['Lagkassör',S.kassor||''],['Antal spelare',X.sp],['Exporterad',new Date().toLocaleDateString('sv-SE')],[]];
+  const b=head.concat([['Post','Belopp (kr)']],X.rows.map(r=>[r[0].replace(/^\s+/,'  '),Math.round(r[1])]),[[],['Lagavgift för att gå jämnt ut (kr/spelare/mån)',X.needR]]);
+  const ws=XLSX.utils.aoa_to_sheet(b);ws['!cols']=[{wch:52},{wch:16}];
+  for(let i=6;i<b.length;i++){const c=ws['B'+(i+1)];if(c&&typeof c.v==='number')c.z=KR;}
+  XLSX.utils.book_append_sheet(wb,ws,'Budget');
+  const d=[['Tränararvode'],['Roll','Ersättningsform','Arvode kr/mån','Månader','Arvode/år','Arbetsgivaravgift','Kostnad/år']];
+  S.tranare.forEach((t,i)=>{const x=X.c.tr[i];d.push([t.roll,t.form,+t.kr||0,+t.man||0,Math.round(x.y),Math.round(x.a),Math.round(x.tot)]);});
+  const names={utrust:'Träningsutrustning',matchklader:'Matchkläder',material:'Övrigt material'};
+  SPECK.forEach(k=>{const r=specRows(k);if(!r.length)return;d.push([],[names[k]],['Vad','Antal','À-pris','Summa']);r.forEach(x=>d.push([x.namn,+x.antal||0,+x.pris||0,(+x.antal||0)*(+x.pris||0)]));});
+  d.push([],['Extra hallar'],['Tim/vecka','Kr/tim','Veckor','Summa'],[S.hall_tim,S.hall_pris,S.hall_v,S.hall_tim*S.hall_pris*S.hall_v]);
+  d.push([],['Cuper'],['Antal','Kr/cup','Summa'],[S.cup_n,S.cup_pris,S.cup_n*S.cup_pris]);
+  d.push([],['Veo'],['Kr/mån','Kr/år','Köp av kamera','Summa'],[+S.veo_man||0,+S.veo_ar||0,+S.veo_kop||0,(+S.veo_man||0)*12+(+S.veo_ar||0)+(+S.veo_kop||0)]);
+  if((S.andra||[]).length){d.push([],['Andra kostnader'],['Vad','Kr/år']);S.andra.forEach(a=>d.push([a.namn,+a.kr||0]));}
+  const ws2=XLSX.utils.aoa_to_sheet(d);ws2['!cols']=[{wch:28},{wch:16},{wch:14},{wch:12},{wch:12},{wch:16},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Detaljer');
+  XLSX.writeFile(wb,'Lagbudget 2027 - '+S.lag.replace(/[^\wåäöÅÄÖ -]/g,'')+'.xlsx');
+  btn.textContent='Exportera till Excel';
 }
 function refresh(){renderTranare();renderAndra();SPECDRAW.forEach(f=>f());calc();}
 build();refresh();
