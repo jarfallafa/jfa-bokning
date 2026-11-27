@@ -101,16 +101,16 @@ function defaults(lag){
     tranare:[{roll:'Huvudtränare',form:'Arvode',kr:2000,man:10}],
     hall_tim:1, hall_pris:1125, hall_v:16,
     cup_n:3, cup_pris:3000,
-    utrust:5000, matchklader:8000, social_pp:200, veo_man:0, material:3000, andra:[], _new:true};
+    utrust:5000, matchklader:8000, social_pp:200, veo_man:0, veo_ar:0, veo_kop:0, material:3000, andra:[], _new:true};
 }
 let S;
 function key(l){return 'jfa-lagbudget-2027-'+l;}
-function load(l){try{const s=localStorage.getItem(key(l));if(s)return JSON.parse(s);}catch(e){}return defaults(l);}
+function load(l){try{const s=localStorage.getItem(key(l));if(s)return Object.assign(defaults(l),JSON.parse(s),{_new:false});}catch(e){}return defaults(l);}
 function save(){try{localStorage.setItem(key(S.lag),JSON.stringify(S));document.getElementById('saved').textContent=' Sparat.';}catch(e){document.getElementById('saved').textContent=' (Kunde inte spara i webbläsaren.)';}}
 function costs(){
   const tr=S.tranare.map(t=>{const y=(+t.kr||0)*(+t.man||0);const a=(t.form!=='Faktura'&&y>=GR)?y*AGA:0;return {y,a,tot:y+a};});
   const trTot=tr.reduce((s,t)=>s+t.tot,0);
-  const K=[['Tränararvode',trTot],['Extra hallar',S.hall_tim*S.hall_pris*S.hall_v],['Cuper',S.cup_n*S.cup_pris],['Träningsutrustning',+S.utrust],['Matchkläder',+S.matchklader],['Sociala aktiviteter',S.social_pp*S.spelare],['Veo',S.veo_man*12],['Övrigt material',+S.material]];
+  const K=[['Tränararvode',trTot],['Extra hallar',S.hall_tim*S.hall_pris*S.hall_v],['Cuper',S.cup_n*S.cup_pris],['Träningsutrustning',+S.utrust],['Matchkläder',+S.matchklader],['Sociala aktiviteter',S.social_pp*S.spelare],['Veo',(+S.veo_man||0)*12+(+S.veo_ar||0)+(+S.veo_kop||0)],['Övrigt material',+S.material]];
   (S.andra||[]).forEach(a=>K.push([a.namn||'Annan kostnad',+a.kr||0]));
   return {tr,K,tot:K.reduce((s,k)=>s+k[1],0)};
 }
@@ -186,7 +186,7 @@ function build(){
   slider(K,'Träningsutrustning','bollar, koner, västar, mål',0,40000,500,'utrust',fmt);
   slider(K,'Matchkläder','',0,60000,500,'matchklader',fmt);
   combo(K,'Sociala aktiviteter','per spelare och år',[['social_pp','kr/spelare',50]],()=>S.social_pp*S.spelare);
-  combo(K,'Veo','abonnemang',[['veo_man','kr/mån',50]],()=>S.veo_man*12);
+  combo(K,'Veo','fyll i det som passar – allt räknas ihop',[['veo_man','kr/mån',50],['veo_ar','kr/år',100],['veo_kop','köp av kamera',500]],()=>(+S.veo_man||0)*12+(+S.veo_ar||0)+(+S.veo_kop||0));
   slider(K,'Övrigt material','',0,30000,500,'material',fmt);
   document.getElementById('addT').onclick=()=>{S.tranare.push({roll:'Assisterande tränare',form:'Arvode',kr:0,man:10});renderTranare();calc();};
   document.getElementById('addA').onclick=()=>{if(!S.andra)S.andra=[];S.andra.push({namn:'',kr:0});renderAndra();calc();const ins=document.querySelectorAll('#andra input[type=text]');ins[ins.length-1].focus();};
