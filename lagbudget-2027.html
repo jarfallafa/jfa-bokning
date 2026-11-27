@@ -24,6 +24,12 @@ tr.s td{font-weight:700;border-top:2px solid var(--g)}
 .tr{display:grid;grid-template-columns:1.3fr 1fr 1fr .7fr 110px 30px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f0f1ee;font-size:13px}
 .tr input,.tr select{width:100%}.tr output{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
 .ar{display:grid;grid-template-columns:2fr 1fr 50px 30px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f0f1ee}.ar input{width:100%}
+.sw{display:flex;flex-direction:column;gap:2px}
+details.spec{margin:0 0 8px;padding:6px 10px;background:#f8faf7;border:1px solid #edf0ec;border-radius:8px;font-size:13px}
+details.spec summary{cursor:pointer;color:var(--g);font-weight:600}
+.sr{display:grid;grid-template-columns:2fr .7fr 1fr 100px 30px;gap:8px;align-items:center;padding:4px 0}
+.sr input{width:100%}.sr output{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+tr.det td{font-size:12px;color:var(--mut);padding-left:22px;border-bottom:1px dotted #eee}tr.det td.r{color:var(--mut)}
 .x{background:none;border:0;color:var(--red);font-size:18px;cursor:pointer}
 button.b{background:var(--g);color:#fff;border:0;border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;margin:4px 6px 0 0}
 button.ghost{background:#fff;color:var(--g);border:1px solid var(--g)}
@@ -101,16 +107,20 @@ function defaults(lag){
     tranare:[{roll:'Huvudtränare',form:'Arvode',kr:2000,man:10}],
     hall_tim:1, hall_pris:1125, hall_v:16,
     cup_n:3, cup_pris:3000,
-    utrust:5000, matchklader:8000, social_pp:200, veo_man:0, veo_ar:0, veo_kop:0, material:3000, andra:[], _new:true};
+    utrust:5000, matchklader:8000, social_pp:200, veo_man:0, veo_ar:0, veo_kop:0, material:3000, andra:[], spec:{utrust:[],matchklader:[],material:[]}, _new:true};
 }
 let S;
 function key(l){return 'jfa-lagbudget-2027-'+l;}
-function load(l){try{const s=localStorage.getItem(key(l));if(s)return Object.assign(defaults(l),JSON.parse(s),{_new:false});}catch(e){}return defaults(l);}
+function load(l){try{const s=localStorage.getItem(key(l));if(s){const d=defaults(l),o=JSON.parse(s);const r=Object.assign(d,o,{_new:false});r.spec=Object.assign({utrust:[],matchklader:[],material:[]},o.spec||{});return r;}}catch(e){}return defaults(l);}
 function save(){try{localStorage.setItem(key(S.lag),JSON.stringify(S));document.getElementById('saved').textContent=' Sparat.';}catch(e){document.getElementById('saved').textContent=' (Kunde inte spara i webbläsaren.)';}}
+const SPECK=['utrust','matchklader','material'];
+function specRows(k){return ((S.spec||{})[k])||[];}
+function specSum(k){return specRows(k).reduce((s,r)=>s+(+r.antal||0)*(+r.pris||0),0);}
+function postVal(k){return specRows(k).length?specSum(k):(+S[k]||0);}
 function costs(){
   const tr=S.tranare.map(t=>{const y=(+t.kr||0)*(+t.man||0);const a=(t.form!=='Faktura'&&y>=GR)?y*AGA:0;return {y,a,tot:y+a};});
   const trTot=tr.reduce((s,t)=>s+t.tot,0);
-  const K=[['Tränararvode',trTot],['Extra hallar',S.hall_tim*S.hall_pris*S.hall_v],['Cuper',S.cup_n*S.cup_pris],['Träningsutrustning',+S.utrust],['Matchkläder',+S.matchklader],['Sociala aktiviteter',S.social_pp*S.spelare],['Veo',(+S.veo_man||0)*12+(+S.veo_ar||0)+(+S.veo_kop||0)],['Övrigt material',+S.material]];
+  const K=[['Tränararvode',trTot],['Extra hallar',S.hall_tim*S.hall_pris*S.hall_v],['Cuper',S.cup_n*S.cup_pris],['Träningsutrustning',postVal('utrust')],['Matchkläder',postVal('matchklader')],['Sociala aktiviteter',S.social_pp*S.spelare],['Veo',(+S.veo_man||0)*12+(+S.veo_ar||0)+(+S.veo_kop||0)],['Övrigt material',postVal('material')]];
   (S.andra||[]).forEach(a=>K.push([a.namn||'Annan kostnad',+a.kr||0]));
   return {tr,K,tot:K.reduce((s,k)=>s+k[1],0)};
 }
@@ -130,8 +140,8 @@ function calc(){
   document.getElementById('bars').innerHTML=c.K.map(k=>`<div class="bar"><span>${k[0]}</span><i style="width:${(k[1]/mx*100).toFixed(1)}%;${k[1]?'':'background:#e2e5e0;width:2px'}"></i><span>${fmt(k[1])}</span></div>`).join('')+`<div class="bar" style="font-weight:700;border-top:2px solid var(--g);padding-top:6px"><span>Summa</span><span></span><span>${fmt(c.tot)}</span></div>`;
   c.tr.forEach((t,i)=>{const o=document.getElementById('tro'+i);if(o)o.innerHTML=fmt(t.tot)+(t.a?`<div class="sub">varav arb.avg ${fmt(t.a)}</div>`:'');});
   const rows=[['Lagavgift ('+sp+' spelare × '+fmt(S.avgift)+' × '+S.man+' mån)',avg],['Sponsring',+S.spons],['Försäljning och café',+S.forsalj],['Övriga intäkter',+S.ovrInt],['Summa intäkter',intak,1],
-    ...c.K.map(k=>[k[0],-k[1]]),['Summa kostnader',-c.tot,1],['Årets resultat',res,1],['Saldo 1 jan 2027',+S.saldo],['Saldo 31 dec 2027',ut,1]];
-  const tbl=rows.map(r=>`<tr class="${r[2]?'s':''}"><td>${esc(r[0])}</td><td class="r ${r[1]<0?'neg':''}">${fmt(r[1])}</td></tr>`).join('');
+    ...c.K.flatMap(k=>{const key={'Träningsutrustning':'utrust','Matchkläder':'matchklader','Övrigt material':'material'}[k[0]];const out=[[k[0],-k[1]]];if(key)specRows(key).forEach(x=>out.push(['    – '+(x.namn||'rad')+' ('+(+x.antal||0)+' × '+fmt(+x.pris||0)+')',-(+x.antal||0)*(+x.pris||0),0,1]));return out;}),['Summa kostnader',-c.tot,1],['Årets resultat',res,1],['Saldo 1 jan 2027',+S.saldo],['Saldo 31 dec 2027',ut,1]];
+  const tbl=rows.map(r=>`<tr class="${r[2]?'s':''}${r[3]?' det':''}"><td>${esc(r[0].trim())}</td><td class="r ${r[1]<0?'neg':''}">${fmt(r[1])}</td></tr>`).join('');
   document.getElementById('sum').innerHTML=tbl;
   const trT=S.tranare.map((t,i)=>`<tr><td>${esc(t.roll)}</td><td>${esc(t.form)}</td><td class="r">${fmt(+t.kr)}/mån × ${t.man}</td><td class="r">${fmt(c.tr[i].tot)}</td></tr>`).join('');
   document.getElementById('print').innerHTML=`<h1 style="color:#004d17;margin:0">Lagbudget 2027 – ${esc(S.lag)}</h1><p class="sub">Lagkassör: ${esc(S.kassor||'–')} · ${sp} spelare · utskrivet ${new Date().toLocaleDateString('sv-SE')}</p>
@@ -147,6 +157,32 @@ function slider(host,label,sub,min,max,step,k,show){
   const i=r.querySelector('input'),o=r.querySelector('output');
   ALL.push(()=>{if(+S[k]>+i.max)i.max=S[k];i.value=S[k];o.textContent=show(+S[k]);});
   i.oninput=()=>{S[k]=+i.value;calc();};host.appendChild(r);}
+function specPost(host,label,sub,min,max,step,k,ideas){
+  const w=document.createElement('div');
+  const r=document.createElement('div');r.className='row';
+  r.innerHTML=`<div>${label}${sub?`<div class="sub">${sub}</div>`:''}</div><div class="sw"><input type="range" min="${min}" max="${max}" step="${step}"><span class="sub specnote"></span></div><output></output>`;
+  const i=r.querySelector('input[type=range]'),o=r.querySelector('output'),note=r.querySelector('.specnote');
+  i.oninput=()=>{S[k]=+i.value;calc();};
+  const d=document.createElement('details');d.className='spec';
+  d.innerHTML=`<summary>Specificera ${label.toLowerCase()}</summary><div class="sr sub" style="border:0"><span>Vad</span><span>Antal</span><span>À-pris kr</span><span style="text-align:right">Summa</span><span></span></div><div class="rows"></div><button class="b ghost">+ Lägg till rad</button><span class="sub" style="margin-left:6px">Förslag: ${ideas.join(', ')}</span>`;
+  const rows=d.querySelector('.rows');
+  function draw(){rows.innerHTML='';specRows(k).forEach((x,j)=>{
+    const e=document.createElement('div');e.className='sr';
+    e.innerHTML=`<input type="text" list="ideas-${k}" value="${esc(x.namn)}" placeholder="t.ex. ${esc(ideas[j%ideas.length])}"><input type="number" min="0" step="1" value="${x.antal}"><input type="number" min="0" step="10" value="${x.pris}"><output></output><button class="x" title="Ta bort">×</button>`;
+    const [n,a,p]=e.querySelectorAll('input');
+    n.oninput=()=>{x.namn=n.value;calc();};a.oninput=()=>{x.antal=+a.value||0;calc();};p.oninput=()=>{x.pris=+p.value||0;calc();};
+    e.querySelector('.x').onclick=()=>{specRows(k).splice(j,1);draw();calc();};
+    rows.appendChild(e);});}
+  d.querySelector('button').onclick=()=>{S.spec[k]=specRows(k);S.spec[k].push({namn:'',antal:1,pris:0});draw();calc();d.open=true;const t=rows.querySelectorAll('input[type=text]');t[t.length-1].focus();};
+  const dl=document.createElement('datalist');dl.id='ideas-'+k;dl.innerHTML=ideas.map(s=>`<option value="${esc(s)}">`).join('');
+  w.append(r,d,dl);host.appendChild(w);
+  SPECDRAW.push(()=>{draw();if(specRows(k).length)d.open=true;});
+  ALL.push(()=>{const has=specRows(k).length>0;i.disabled=has;i.style.opacity=has?.35:1;note.textContent=has?'Summan räknas från raderna nedan':'';
+    if(!has){if(+S[k]>+i.max)i.max=S[k];i.value=S[k];}
+    o.textContent=fmt(postVal(k));
+    rows.querySelectorAll('.sr').forEach((e,j)=>{const x=specRows(k)[j];if(x)e.querySelector('output').textContent=fmt((+x.antal||0)*(+x.pris||0));});});
+}
+const SPECDRAW=[];
 function combo(host,label,sub,parts,totalFn){
   // parts: [key,label,step]
   const r=document.createElement('div');r.className='row';
@@ -183,11 +219,11 @@ function build(){
   const K=document.getElementById('kost');
   combo(K,'Extra hallar','Skills Academy ca 1 125 kr/tim vintern 2026/27',[['hall_tim','tim/vecka',0.5],['hall_pris','kr/tim',25],['hall_v','veckor',1]],()=>S.hall_tim*S.hall_pris*S.hall_v);
   combo(K,'Cuper','anmälningsavgifter',[['cup_n','antal',1],['cup_pris','kr/cup',250]],()=>S.cup_n*S.cup_pris);
-  slider(K,'Träningsutrustning','bollar, koner, västar, mål',0,40000,500,'utrust',fmt);
-  slider(K,'Matchkläder','',0,60000,500,'matchklader',fmt);
+  specPost(K,'Träningsutrustning','bollar, koner, västar, mål',0,40000,500,'utrust',['Bollar','Koner','Västar','Små mål','Bollpump','Sjukvårdsväska']);
+  specPost(K,'Matchkläder','',0,60000,500,'matchklader',['Matchställ','Målvaktsställ','Kaptensbindel','Tryck nummer']);
   combo(K,'Sociala aktiviteter','per spelare och år',[['social_pp','kr/spelare',50]],()=>S.social_pp*S.spelare);
   combo(K,'Veo','fyll i det som passar – allt räknas ihop',[['veo_man','kr/mån',50],['veo_ar','kr/år',100],['veo_kop','köp av kamera',500]],()=>(+S.veo_man||0)*12+(+S.veo_ar||0)+(+S.veo_kop||0));
-  slider(K,'Övrigt material','',0,30000,500,'material',fmt);
+  specPost(K,'Övrigt material','',0,30000,500,'material',['Taktiktavla','Bollnät','Vattenflaskor','Kylväska']);
   document.getElementById('addT').onclick=()=>{S.tranare.push({roll:'Assisterande tränare',form:'Arvode',kr:0,man:10});renderTranare();calc();};
   document.getElementById('addA').onclick=()=>{if(!S.andra)S.andra=[];S.andra.push({namn:'',kr:0});renderAndra();calc();const ins=document.querySelectorAll('#andra input[type=text]');ins[ins.length-1].focus();};
   document.getElementById('reset').onclick=()=>{if(confirm('Återställa '+S.lag+' till exempelvärden?')){S=defaults(S.lag);refresh();}};
@@ -205,6 +241,6 @@ function renderAndra(){
     d.querySelector('.x').onclick=()=>{S.andra.splice(i,1);renderAndra();calc();};
     h.appendChild(d);});
 }
-function refresh(){renderTranare();renderAndra();calc();}
+function refresh(){renderTranare();renderAndra();SPECDRAW.forEach(f=>f());calc();}
 build();refresh();
 </script></body></html>
