@@ -106,7 +106,7 @@ function defaults(lag){
   return {lag, kassor:'', spelare:sp, saldo:0,
     avgift:0, man:12, spons:0, forsalj:0, ovrInt:0,
     tranare:[{roll:'Huvudtränare',form:'Arvode',kr:2000,man:10}],
-    hall_tim:1, hall_pris:1125, hall_v:16,
+    hall_tim:1, hall_pris:1125, hall_v:16, hall_exakt:0,
     cup_n:3, cup_pris:3000,
     utrust:5000, matchklader:8000, social_pp:200, veo_man:0, veo_ar:0, veo_kop:0, material:3000, andra:[], spec:{utrust:[],matchklader:[],material:[]}, _new:true};
 }
@@ -114,6 +114,7 @@ let S;
 function key(l){return 'jfa-lagbudget-2027-'+l;}
 function load(l){try{const s=localStorage.getItem(key(l));if(s){const d=defaults(l),o=JSON.parse(s);const r=Object.assign(d,o,{_new:false});r.spec=Object.assign({utrust:[],matchklader:[],material:[]},o.spec||{});return r;}}catch(e){}return defaults(l);}
 function save(){try{localStorage.setItem(key(S.lag),JSON.stringify(S));document.getElementById('saved').textContent=' Sparat.';}catch(e){document.getElementById('saved').textContent=' (Kunde inte spara i webbläsaren.)';}}
+function hallVal(){return (+S.hall_exakt||0)>0?(+S.hall_exakt):(+S.hall_tim||0)*(+S.hall_pris||0)*(+S.hall_v||0);}
 const SPECK=['utrust','matchklader','material'];
 function specRows(k){return ((S.spec||{})[k])||[];}
 function specSum(k){return specRows(k).reduce((s,r)=>s+(+r.antal||0)*(+r.pris||0),0);}
@@ -121,7 +122,7 @@ function postVal(k){return specRows(k).length?specSum(k):(+S[k]||0);}
 function costs(){
   const tr=S.tranare.map(t=>{const y=(+t.kr||0)*(+t.man||0);const a=(t.form!=='Faktura'&&y>=GR)?y*AGA:0;return {y,a,tot:y+a};});
   const trTot=tr.reduce((s,t)=>s+t.tot,0);
-  const K=[['Tränararvode',trTot],['Extra hallar',S.hall_tim*S.hall_pris*S.hall_v],['Cuper',S.cup_n*S.cup_pris],['Träningsutrustning',postVal('utrust')],['Matchkläder',postVal('matchklader')],['Sociala aktiviteter',S.social_pp*S.spelare],['Veo',(+S.veo_man||0)*12+(+S.veo_ar||0)+(+S.veo_kop||0)],['Övrigt material',postVal('material')]];
+  const K=[['Tränararvode',trTot],['Extra hallar',hallVal()],['Cuper',S.cup_n*S.cup_pris],['Träningsutrustning',postVal('utrust')],['Matchkläder',postVal('matchklader')],['Sociala aktiviteter',S.social_pp*S.spelare],['Veo',(+S.veo_man||0)*12+(+S.veo_ar||0)+(+S.veo_kop||0)],['Övrigt material',postVal('material')]];
   (S.andra||[]).forEach(a=>K.push([a.namn||'Annan kostnad',+a.kr||0]));
   return {tr,K,tot:K.reduce((s,k)=>s+k[1],0)};
 }
@@ -219,7 +220,7 @@ function build(){
   slider(I,'Försäljning och café','t.ex. kiosk, lotter, café vid hemmamatcher',0,100000,1000,'forsalj',fmt);
   slider(I,'Övriga intäkter','',0,50000,500,'ovrInt',fmt);
   const K=document.getElementById('kost');
-  combo(K,'Extra hallar','Skills Academy ca 1 125 kr/tim vintern 2026/27',[['hall_tim','tim/vecka',0.5],['hall_pris','kr/tim',25],['hall_v','veckor',1]],()=>S.hall_tim*S.hall_pris*S.hall_v);
+  combo(K,'Extra hallar','Räkna med tim × pris × veckor – eller skriv exakt summa (då gäller den)',[['hall_tim','tim/vecka',0.5],['hall_pris','kr/tim',25],['hall_v','veckor',1],['hall_exakt','eller exakt summa kr',100]],hallVal);
   combo(K,'Cuper','anmälningsavgifter',[['cup_n','antal',1],['cup_pris','kr/cup',250]],()=>S.cup_n*S.cup_pris);
   specPost(K,'Träningsutrustning','bollar, koner, västar, mål',0,40000,500,'utrust',['Bollar','Koner','Västar','Små mål','Bollpump','Sjukvårdsväska']);
   specPost(K,'Matchkläder','',0,60000,500,'matchklader',['Matchställ','Målvaktsställ','Kaptensbindel','Tryck nummer']);
@@ -258,7 +259,7 @@ async function exportXLSX(){
   S.tranare.forEach((t,i)=>{const x=X.c.tr[i];d.push([t.roll,t.form,+t.kr||0,+t.man||0,Math.round(x.y),Math.round(x.a),Math.round(x.tot)]);});
   const names={utrust:'Träningsutrustning',matchklader:'Matchkläder',material:'Övrigt material'};
   SPECK.forEach(k=>{const r=specRows(k);if(!r.length)return;d.push([],[names[k]],['Vad','Antal','À-pris','Summa']);r.forEach(x=>d.push([x.namn,+x.antal||0,+x.pris||0,(+x.antal||0)*(+x.pris||0)]));});
-  d.push([],['Extra hallar'],['Tim/vecka','Kr/tim','Veckor','Summa'],[S.hall_tim,S.hall_pris,S.hall_v,S.hall_tim*S.hall_pris*S.hall_v]);
+  d.push([],['Extra hallar'],['Tim/vecka','Kr/tim','Veckor','Exakt summa','Summa'],[S.hall_tim,S.hall_pris,S.hall_v,+S.hall_exakt||0,hallVal()]);
   d.push([],['Cuper'],['Antal','Kr/cup','Summa'],[S.cup_n,S.cup_pris,S.cup_n*S.cup_pris]);
   d.push([],['Veo'],['Kr/mån','Kr/år','Köp av kamera','Summa'],[+S.veo_man||0,+S.veo_ar||0,+S.veo_kop||0,(+S.veo_man||0)*12+(+S.veo_ar||0)+(+S.veo_kop||0)]);
   if((S.andra||[]).length){d.push([],['Andra kostnader'],['Vad','Kr/år']);S.andra.forEach(a=>d.push([a.namn,+a.kr||0]));}
