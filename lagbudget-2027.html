@@ -23,6 +23,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;b
 tr.s td{font-weight:700;border-top:2px solid var(--g)}
 .tr{display:grid;grid-template-columns:1.3fr 1fr 1fr .7fr 110px 30px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f0f1ee;font-size:13px}
 .tr input,.tr select{width:100%}.tr output{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.ar{display:grid;grid-template-columns:2fr 1fr 50px 30px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f0f1ee}.ar input{width:100%}
 .x{background:none;border:0;color:var(--red);font-size:18px;cursor:pointer}
 button.b{background:var(--g);color:#fff;border:0;border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;margin:4px 6px 0 0}
 button.ghost{background:#fff;color:var(--g);border:1px solid var(--g)}
@@ -70,7 +71,11 @@ button.ghost{background:#fff;color:var(--g);border:1px solid var(--g)}
 <p class="note">Arvode betalas via JFA:s lönerutin. Arbetsgivaravgift 31,42 % tillkommer när en tränares arvode för året når 29 800 kr (½ prisbasbelopp 2027). Tränare som fakturerar har ingen arbetsgivaravgift.</p>
 </section>
 
-<section><h2>Övriga kostnader</h2><div id="kost"></div></section>
+<section><h2>Övriga kostnader</h2><div id="kost"></div>
+<h2 style="margin-top:16px">Andra kostnader</h2>
+<div id="andra"></div>
+<button class="b ghost" id="addA">+ Lägg till kostnad</button>
+<p class="note">Lägg till sådant som inte passar i posterna ovan, t.ex. träningsläger, avslutning, domarkurs eller resor.</p></section>
 
 <section><h2>Sammanfattning</h2><table id="sum"></table>
 <button class="b" onclick="window.print()">Skriv ut / spara som PDF</button>
@@ -96,7 +101,7 @@ function defaults(lag){
     tranare:[{roll:'Huvudtränare',form:'Arvode',kr:2000,man:10}],
     hall_tim:1, hall_pris:1125, hall_v:16,
     cup_n:3, cup_pris:3000,
-    utrust:5000, matchklader:8000, social_pp:200, veo_man:0, material:3000, _new:true};
+    utrust:5000, matchklader:8000, social_pp:200, veo_man:0, material:3000, andra:[], _new:true};
 }
 let S;
 function key(l){return 'jfa-lagbudget-2027-'+l;}
@@ -106,6 +111,7 @@ function costs(){
   const tr=S.tranare.map(t=>{const y=(+t.kr||0)*(+t.man||0);const a=(t.form!=='Faktura'&&y>=GR)?y*AGA:0;return {y,a,tot:y+a};});
   const trTot=tr.reduce((s,t)=>s+t.tot,0);
   const K=[['Tränararvode',trTot],['Extra hallar',S.hall_tim*S.hall_pris*S.hall_v],['Cuper',S.cup_n*S.cup_pris],['Träningsutrustning',+S.utrust],['Matchkläder',+S.matchklader],['Sociala aktiviteter',S.social_pp*S.spelare],['Veo',S.veo_man*12],['Övrigt material',+S.material]];
+  (S.andra||[]).forEach(a=>K.push([a.namn||'Annan kostnad',+a.kr||0]));
   return {tr,K,tot:K.reduce((s,k)=>s+k[1],0)};
 }
 function calc(){
@@ -183,9 +189,22 @@ function build(){
   combo(K,'Veo','abonnemang',[['veo_man','kr/mån',50]],()=>S.veo_man*12);
   slider(K,'Övrigt material','',0,30000,500,'material',fmt);
   document.getElementById('addT').onclick=()=>{S.tranare.push({roll:'Assisterande tränare',form:'Arvode',kr:0,man:10});renderTranare();calc();};
+  document.getElementById('addA').onclick=()=>{if(!S.andra)S.andra=[];S.andra.push({namn:'',kr:0});renderAndra();calc();const ins=document.querySelectorAll('#andra input[type=text]');ins[ins.length-1].focus();};
   document.getElementById('reset').onclick=()=>{if(confirm('Återställa '+S.lag+' till exempelvärden?')){S=defaults(S.lag);refresh();}};
   document.getElementById('copy').onclick=async()=>{try{await navigator.clipboard.writeText(window._summary);document.getElementById('copy').textContent='Kopierat!';setTimeout(()=>document.getElementById('copy').textContent='Kopiera sammanfattning',1500);}catch(e){alert(window._summary);}};
 }
-function refresh(){renderTranare();calc();}
+function renderAndra(){
+  if(!S.andra)S.andra=[];
+  const h=document.getElementById('andra');h.innerHTML='';
+  if(!S.andra.length){h.innerHTML='<p class="sub">Inga andra kostnader tillagda.</p>';return;}
+  S.andra.forEach((a,i)=>{
+    const d=document.createElement('div');d.className='ar';
+    d.innerHTML=`<input type="text" placeholder="Vad gäller kostnaden?" value="${esc(a.namn)}"><input type="number" min="0" step="100" value="${a.kr}"><span class="sub">kr/år</span><button class="x" title="Ta bort">×</button>`;
+    const [n,k]=d.querySelectorAll('input');
+    n.oninput=()=>{a.namn=n.value;calc();};k.oninput=()=>{a.kr=+k.value||0;calc();};
+    d.querySelector('.x').onclick=()=>{S.andra.splice(i,1);renderAndra();calc();};
+    h.appendChild(d);});
+}
+function refresh(){renderTranare();renderAndra();calc();}
 build();refresh();
 </script></body></html>
